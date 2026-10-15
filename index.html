@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Steam Library & Tags Explorer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #171a21;
+      color: #c6d4df;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    header h1 {
+      color: #66c0f4;
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: #8f98a0;
+      font-size: 0.95rem;
+    }
+
+    .panel {
+      background-color: #1b2838;
+      border: 1px solid #2a475e;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    .search-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .input-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-width: 220px;
+    }
+
+    .input-box label {
+      font-size: 0.85rem;
+      color: #66c0f4;
+      font-weight: bold;
+    }
+
+    input, select {
+      background-color: #0d121a;
+      border: 1px solid #2a475e;
+      color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 5px;
+      outline: none;
+      font-size: 0.95rem;
+    }
+
+    input:focus, select:focus {
+      border-color: #66c0f4;
+    }
+
+    button {
+      background: linear-gradient(90deg, #47bfff 0%, #1a9fff 100%);
+      color: white;
+      border: none;
+      padding: 11px 22px;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: opacity 0.2s, transform 0.1s;
+      height: 42px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      background: #2a475e;
+      cursor: not-allowed;
+      color: #8f98a0;
+    }
+
+    .btn-export {
+      background: linear-gradient(90deg, #a3e035 0%, #87bc27 100%);
+      color: #0d121a;
+    }
+
+    .status-box {
+      background-color: #0d121a;
+      border: 1px dashed #2a475e;
+      padding: 14px 18px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      color: #66c0f4;
+      display: none;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .summary-card {
+      background-color: #1b2838;
+      border: 1px solid #2a475e;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .summary-card h3 {
+      font-size: 0.8rem;
+      color: #8f98a0;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .summary-card .val {
+      font-size: 1.6rem;
+      font-weight: bold;
+      color: #a3e035;
+    }
+
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .game-card {
+      background-color: #1b2838;
+      border: 1px solid #2a475e;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .game-card:hover {
+      transform: translateY(-4px);
+      border-color: #66c0f4;
+    }
+
+    .game-banner {
+      width: 100%;
+      height: 125px;
+      object-fit: cover;
+      background-color: #0d121a;
+    }
+
+    .game-info {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    .game-title {
+      font-size: 1rem;
+      font-weight: bold;
+      color: #ffffff;
+      margin-bottom: 6px;
+      line-height: 1.25;
+    }
+
+    .game-playtime {
+      font-size: 0.8rem;
+      color: #a3e035;
+      margin-bottom: 10px;
+    }
+
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: auto;
+    }
+
+    .tag-pill {
+      background-color: #2a475e;
+      color: #66c0f4;
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .tag-pill.cat {
+      background-color: #1e3a5f;
+      color: #c6d4df;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>🎮 Explorador de Juegos y Tags de Steam</h1>
+      <p>Consulta todos los juegos de tu cuenta, descubre sus etiquetas/géneros y expórtalos</p>
+    </header>
+
+    <div class="panel">
+      <div class="search-group">
+        <div class="input-box">
+          <label for="steamInput">Usuario o ID de Steam:</label>
+          <input type="text" id="steamInput" placeholder="Ejemplo: gabo459, 76561198... o URL de perfil">
+        </div>
+        <button id="btnSearch" onclick="fetchLibrary()">🔍 Consultar Biblioteca</button>
+      </div>
+    </div>
+
+    <div class="status-box" id="statusBox">Esperando consulta...</div>
+
+    <div id="statsSection" style="display: none;">
+      <div class="summary-grid">
+        <div class="summary-card">
+          <h3>Total de Juegos</h3>
+          <div class="val" id="statTotal" style="color: #66c0f4;">0</div>
+        </div>
+        <div class="summary-card">
+          <h3>Horas Totales Jugadas</h3>
+          <div class="val" id="statHours">0 hrs</div>
+        </div>
+        <div class="summary-card">
+          <h3>Juegos Jugados</h3>
+          <div class="val" id="statPlayed" style="color: #ffffff;">0</div>
+        </div>
+      </div>
+
+      <div class="panel filter-bar">
+        <div style="display: flex; gap: 10px; flex: 1; min-width: 260px;">
+          <input type="text" id="filterText" placeholder="Filtrar por nombre o etiqueta (ej: RPG, Acción)..." oninput="applyFilters()" style="width: 100%;">
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-export" onclick="exportCSV()">📊 Exportar CSV</button>
+          <button class="btn-export" style="background: #2a475e; color: #fff;" onclick="exportTXT()">📄 Exportar TXT</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="games-grid" id="gamesGrid"></div>
+  </div>
+
+  <script>
+    // ⚠️ REEMPLAZA ESTA URL CON LA BASE DE TU CLOUDFLARE WORKER DEPLOYADO
+    const WORKER_URL = "https://library-worker.ernestoygabo.workers.dev/".replace(/\/$/, "");
+
+    let allGames = [];
+    let filteredGames = [];
+
+    async function resolveSteamId(input) {
+      let clean = input.trim();
+      if (/^\d{17}$/.test(clean)) return clean;
+
+      const profileMatch = clean.match(/steamcommunity\.com\/profiles\/(\d{17})/);
+      if (profileMatch) return profileMatch[1];
+
+      let customName = clean
+        .split('?')[0]
+        .replace(/https?:\/\/steamcommunity\.com\/id\//, '')
+        .replace(/\//g, '')
+        .trim();
+
+      if (!customName) return null;
+
+      const res = await fetch(`${WORKER_URL}/?action=resolve&vanity=${encodeURIComponent(customName)}`);
+      const data = await res.json();
+
+      if (data.response && data.response.success === 1) {
+        return data.response.steamid;
+      } else {
+        throw new Error(`No se pudo encontrar un SteamID64 para '${customName}'.`);
+      }
+    }
+
+    async function fetchLibrary() {
+      const input = document.getElementById('steamInput').value;
+      const statusBox = document.getElementById('statusBox');
+      const btn = document.getElementById('btnSearch');
+
+      if (!input.trim()) {
+        alert("Ingresa un usuario o ID de Steam.");
+        return;
+      }
+
+      btn.disabled = true;
+      statusBox.style.display = "block";
+      statusBox.textContent = "🔍 Resolviendo ID de Steam...";
+      document.getElementById('statsSection').style.display = "none";
+      document.getElementById('gamesGrid').innerHTML = "";
+
+      try {
+        const steamId = await resolveSteamId(input);
+        statusBox.textContent = `⏳ Obteniendo biblioteca de juegos para SteamID: ${steamId}...`;
+
+        const res = await fetch(`${WORKER_URL}/?action=owned_games&steamid=${steamId}`);
+        const data = await res.json();
+
+        if (!data.response || !data.response.games) {
+          throw new Error("No se pudieron obtener los juegos. Verifica que el perfil y la biblioteca sean PÚBLICOS.");
+        }
+
+        let rawGames = data.response.games;
+        // Ordenar por tiempo de juego descendente
+        rawGames.sort((a, b) => b.playtime_forever - a.playtime_forever);
+
+        allGames = rawGames.map(g => ({
+          appid: g.appid,
+          name: g.name,
+          playtime: (g.playtime_forever / 60).toFixed(1),
+          imgUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${g.appid}/header.jpg`,
+          tags: [],
+          categories: [],
+          loadedDetails: false
+        }));
+
+        let totalHours = allGames.reduce((acc, g) => acc + parseFloat(g.playtime), 0);
+        let playedCount = allGames.filter(g => parseFloat(g.playtime) > 0).length;
+
+        document.getElementById('statTotal').textContent = allGames.length;
+        document.getElementById('statHours').textContent = `${totalHours.toFixed(0)} hrs`;
+        document.getElementById('statPlayed').textContent = playedCount;
+        document.getElementById('statsSection').style.display = "block";
+
+        filteredGames = [...allGames];
+        renderGrid();
+
+        statusBox.textContent = `📦 Se cargaron ${allGames.length} juegos. Obteniendo etiquetas y géneros de la tienda...`;
+
+        // Cargar etiquetas/géneros en lote de los primeros 30 juegos más jugados
+        fetchTagsForBatch(allGames.slice(0, 30), statusBox);
+
+      } catch (err) {
+        statusBox.textContent = `❌ Error: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function fetchTagsForBatch(gamesList, statusBox) {
+      let count = 0;
+      for (const game of gamesList) {
+        count++;
+        statusBox.textContent = `⏳ Obteniendo etiquetas (${count}/${gamesList.length}): ${game.name}...`;
+        
+        try {
+          const res = await fetch(`${WORKER_URL}/?action=app_details&appid=${game.appid}`);
+          const data = await res.json();
+
+          if (data[game.appid] && data[game.appid].success && data[game.appid].data) {
+            const details = data[game.appid].data;
+            if (details.genres) {
+              game.tags = details.genres.map(g => g.description);
+            }
+            if (details.categories) {
+              game.categories = details.categories.slice(0, 3).map(c => c.description);
+            }
+          }
+        } catch (e) {
+          console.warn(`No se pudieron cargar etiquetas para ${game.name}`);
+        }
+
+        game.loadedDetails = true;
+        renderGrid();
+        await new Promise(r => setTimeout(r, 200)); // Pausa ligera
+      }
+
+      statusBox.textContent = `✅ Carga finalizada. Se procesaron las etiquetas de los juegos principales.`;
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('gamesGrid');
+      grid.innerHTML = "";
+
+      filteredGames.forEach(game => {
+        const card = document.createElement('div');
+        card.className = 'game-card';
+
+        const tagsHtml = game.tags.map(t => `<span class="tag-pill">${t}</span>`).join('');
+        const catsHtml = game.categories.map(c => `<span class="tag-pill cat">${c}</span>`).join('');
+
+        card.innerHTML = `
+          <img class="game-banner" src="${game.imgUrl}" onerror="this.src='https://via.placeholder.com/460x215/1b2838/66c0f4?text=${encodeURIComponent(game.name)}'" alt="${game.name}">
+          <div class="game-info">
+            <div class="game-title">${game.name}</div>
+            <div class="game-playtime">⏱️ ${game.playtime} horas jugadas</div>
+            <div class="tag-container">
+              ${tagsHtml}
+              ${catsHtml}
+              ${(!game.loadedDetails) ? '<span style="font-size: 0.7rem; color: #8f98a0;">Sin etiquetas</span>' : ''}
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('filterText').value.toLowerCase().trim();
+
+      if (!query) {
+        filteredGames = [...allGames];
+      } else {
+        filteredGames = allGames.filter(g => {
+          const matchName = g.name.toLowerCase().includes(query);
+          const matchTag = g.tags.some(t => t.toLowerCase().includes(query));
+          const matchCat = g.categories.some(c => c.toLowerCase().includes(query));
+          return matchName || matchTag || matchCat;
+        });
+      }
+
+      renderGrid();
+    }
+
+    // Funciones de Exportación
+    function exportCSV() {
+      if (allGames.length === 0) return alert("No hay juegos para exportar.");
+
+      let csvContent = "\uFEFF"; // UTF-8 BOM para Excel
+      csvContent += "AppID,Título,Horas Jugadas,Géneros,Categorías,Enlace Tienda\n";
+
+      allGames.forEach(g => {
+        const titleEscaped = `"${g.name.replace(/"/g, '""')}"`;
+        const genresEscaped = `"${g.tags.join(', ')}"`;
+        const catsEscaped = `"${g.categories.join(', ')}"`;
+        const storeLink = `https://store.steampowered.com/app/${g.appid}`;
+
+        csvContent += `${g.appid},${titleEscaped},${g.playtime},${genresEscaped},${catsEscaped},${storeLink}\n`;
+      });
+
+      downloadFile(csvContent, "steam_library.csv", "text/csv;charset=utf-8;");
+    }
+
+    function exportTXT() {
+      if (allGames.length === 0) return alert("No hay juegos para exportar.");
+
+      let txtContent = `===============================================\n`;
+      txtContent += `      REPORTE DE BIBLIOTECA DE STEAM          \n`;
+      txtContent += `===============================================\n\n`;
+
+      allGames.forEach((g, index) => {
+        txtContent += `${index + 1}. ${g.name}\n`;
+        txtContent += `   - App ID: ${g.appid}\n`;
+        txtContent += `   - Tiempo Jugado: ${g.playtime} horas\n`;
+        if (g.tags.length > 0) txtContent += `   - Géneros: ${g.tags.join(', ')}\n`;
+        if (g.categories.length > 0) txtContent += `   - Categorías: ${g.categories.join(', ')}\n`;
+        txtContent += `   - Tienda: https://store.steampowered.com/app/${g.appid}\n\n`;
+      });
+
+      downloadFile(txtContent, "steam_library.txt", "text/plain;charset=utf-8;");
+    }
+
+    function downloadFile(content, fileName, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
