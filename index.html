@@ -157,7 +157,7 @@
     .filter-bar {
       display: flex;
       flex-wrap: wrap;
-      gap: 15px;
+      gap: 12px;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 20px;
@@ -225,6 +225,15 @@
       font-size: 0.72rem;
       padding: 3px 8px;
       border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      user-select: none;
+    }
+
+    .tag-pill:hover {
+      background-color: #66c0f4;
+      color: #0d121a;
+      transform: scale(1.05);
     }
 
     .tag-pill.cat {
@@ -232,9 +241,9 @@
       color: #c6d4df;
     }
 
-    .tag-pill.cached {
-      background-color: #133a28;
-      color: #a3e035;
+    .tag-pill.cat:hover {
+      background-color: #3b628c;
+      color: #ffffff;
     }
   </style>
 </head>
@@ -276,8 +285,13 @@
       </div>
 
       <div class="panel filter-bar">
-        <div style="display: flex; gap: 10px; flex: 1; min-width: 260px;">
-          <input type="text" id="filterText" placeholder="Filtrar por nombre o etiqueta (ej: RPG, Acción)..." oninput="applyFilters()" style="width: 100%;">
+        <div style="display: flex; gap: 10px; flex: 2; min-width: 280px;">
+          <input type="text" id="filterText" placeholder="Buscar por nombre..." oninput="applyFilters()" style="flex: 1;">
+          
+          <!-- Filtro selector dinámico por Tag / Género -->
+          <select id="tagSelect" onchange="applyFilters()" style="flex: 1; max-width: 250px;">
+            <option value="">Todos los géneros / tags</option>
+          </select>
         </div>
         
         <div style="display: flex; gap: 10px;">
@@ -395,7 +409,6 @@
           };
         });
 
-        // Filtrar solo los juegos que NO están en la caché
         allGames.forEach(g => {
           if (!g.loadedDetails) pendingGames.push(g);
         });
@@ -408,6 +421,7 @@
         document.getElementById('statPlayed').textContent = playedCount;
         document.getElementById('statsSection').style.display = "block";
 
+        populateTagDropdown();
         filteredGames = [...allGames];
         renderGrid();
 
@@ -459,7 +473,6 @@
                 }
               }
 
-              // Guardar en la caché del navegador
               saveToCache(game.appid, game.tags, game.categories);
               success = true;
             }
@@ -472,13 +485,44 @@
         game.loadedDetails = true;
 
         if (count % 3 === 0 || count === gamesList.length) {
-          renderGrid();
+          populateTagDropdown();
+          applyFilters();
         }
 
         await new Promise(r => setTimeout(r, 150));
       }
 
       statusBox.textContent = `✅ Carga completada. Todos los juegos nuevos han sido procesados y guardados en la caché local.`;
+    }
+
+    // Poblar dinámicamente el desplegable con tags/géneros únicos
+    function populateTagDropdown() {
+      const select = document.getElementById('tagSelect');
+      const currentValue = select.value;
+
+      const tagSet = new Set();
+      allGames.forEach(g => {
+        g.tags.forEach(t => tagSet.add(t));
+        g.categories.forEach(c => tagSet.add(c));
+      });
+
+      const sortedTags = Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+
+      select.innerHTML = '<option value="">Todos los géneros / tags</option>';
+      sortedTags.forEach(tag => {
+        const opt = document.createElement('option');
+        opt.value = tag;
+        opt.textContent = tag;
+        if (tag === currentValue) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    // Filtrar al hacer clic en un tag de la tarjeta
+    function filterByTag(tag) {
+      const select = document.getElementById('tagSelect');
+      select.value = tag;
+      applyFilters();
     }
 
     function renderGrid() {
@@ -489,8 +533,8 @@
         const card = document.createElement('div');
         card.className = 'game-card';
 
-        const tagsHtml = game.tags.map(t => `<span class="tag-pill">${t}</span>`).join('');
-        const catsHtml = game.categories.map(c => `<span class="tag-pill cat">${c}</span>`).join('');
+        const tagsHtml = game.tags.map(t => `<span class="tag-pill" onclick="filterByTag('${t.replace(/'/g, "\\'")}')">${t}</span>`).join('');
+        const catsHtml = game.categories.map(c => `<span class="tag-pill cat" onclick="filterByTag('${c.replace(/'/g, "\\'")}')">${c}</span>`).join('');
 
         card.innerHTML = `
           <img class="game-banner" src="${game.imgUrl}" onerror="this.src='https://via.placeholder.com/460x215/1b2838/66c0f4?text=${encodeURIComponent(game.name)}'" alt="${game.name}">
@@ -511,17 +555,16 @@
 
     function applyFilters() {
       const query = document.getElementById('filterText').value.toLowerCase().trim();
+      const selectedTag = document.getElementById('tagSelect').value.toLowerCase().trim();
 
-      if (!query) {
-        filteredGames = [...allGames];
-      } else {
-        filteredGames = allGames.filter(g => {
-          const matchName = g.name.toLowerCase().includes(query);
-          const matchTag = g.tags.some(t => t.toLowerCase().includes(query));
-          const matchCat = g.categories.some(c => c.toLowerCase().includes(query));
-          return matchName || matchTag || matchCat;
-        });
-      }
+      filteredGames = allGames.filter(g => {
+        const matchText = !query || g.name.toLowerCase().includes(query);
+        const matchTag = !selectedTag || 
+          g.tags.some(t => t.toLowerCase() === selectedTag) ||
+          g.categories.some(c => c.toLowerCase() === selectedTag);
+
+        return matchText && matchTag;
+      });
 
       renderGrid();
     }
