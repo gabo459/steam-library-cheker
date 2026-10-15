@@ -309,3 +309,815 @@
 
     <div class="games-grid" id="gamesGrid"></div>
   </div>
+
+  <script>
+    const WORKER_URL = "https://library-worker.ernestoygabo.workers.dev/".replace(/\/$/, "");
+    const CACHE_KEY = "steam_games_tags_cache_v3";
+
+    // --- DICCIONARIO OFICIAL DE ETIQUETAS DE STEAM (SteamDB) ---
+    const OFFICIAL_STEAM_TAGS = [
+      { id: 1003823, name: "Profile Features Limited", iconName: "🔒 Profile Features Limited" },
+      { id: 4182, name: "Singleplayer", iconName: "👤 Singleplayer" },
+      { id: 492, name: "Indie", iconName: "🌱 Indie" },
+      { id: 597, name: "Casual", iconName: "😌 Casual" },
+      { id: 19, name: "Action", iconName: "💥 Action" },
+      { id: 21, name: "Adventure", iconName: "🗺️ Adventure" },
+      { id: 3871, name: "2D", iconName: "🖼️ 2D" },
+      { id: 599, name: "Simulation", iconName: "🖥️ Simulation" },
+      { id: 4191, name: "3D", iconName: "🧊 3D" },
+      { id: 9, name: "Strategy", iconName: "💡 Strategy" },
+      { id: 122, name: "RPG", iconName: "🎲 RPG" },
+      { id: 4166, name: "Atmospheric", iconName: "🌫 Atmospheric" },
+      { id: 1742, name: "Story Rich", iconName: "📚 Story Rich" },
+      { id: 4305, name: "Colorful", iconName: "🎨 Colorful" },
+      { id: 3834, name: "Exploration", iconName: "🗺 Exploration" },
+      { id: 1684, name: "Fantasy", iconName: "🎭 Fantasy" },
+      { id: 3964, name: "Pixel Graphics", iconName: "👾 Pixel Graphics" },
+      { id: 4726, name: "Cute", iconName: "🧸 Cute" },
+      { id: 1664, name: "Puzzle", iconName: "🧩 Puzzle" },
+      { id: 3839, name: "First-Person", iconName: "🙌 First-Person" },
+      { id: 21491, name: "Demo Available", iconName: "💿 Demo Available" },
+      { id: 1368160, name: "AI Content Disclosed", iconName: "✨ AI Content Disclosed" },
+      { id: 3859, name: "Multiplayer", iconName: "🕹️ Multiplayer" },
+      { id: 1654, name: "Relaxing", iconName: "🧘 Relaxing" },
+      { id: 1773, name: "Arcade", iconName: "🕹 Arcade" },
+      { id: 4106, name: "Action-Adventure", iconName: "🌄 Action-Adventure" },
+      { id: 113, name: "Free to Play", iconName: "🆓 Free to Play" },
+      { id: 4252, name: "Stylized", iconName: "🎨 Stylized" },
+      { id: 3993, name: "Combat", iconName: "⚔️ Combat" },
+      { id: 4136, name: "Funny", iconName: "😃 Funny" },
+      { id: 4085, name: "Anime", iconName: "🌸 Anime" },
+      { id: 1667, name: "Horror", iconName: "😱 Horror" },
+      { id: 3942, name: "Sci-fi", iconName: "🚀 Sci-fi" },
+      { id: 4791, name: "Top-Down", iconName: "🗺️ Top-Down" },
+      { id: 7481, name: "Controller", iconName: "🎮 Controller" },
+      { id: 493, name: "Early Access", iconName: "🐤 Early Access" },
+      { id: 1697, name: "Third Person", iconName: "👤 Third Person" },
+      { id: 5350, name: "Family Friendly", iconName: "👪 Family Friendly" },
+      { id: 1774, name: "Shooter", iconName: "🔫 Shooter" },
+      { id: 6426, name: "Choices Matter", iconName: "🧞 Choices Matter" },
+      { id: 6730, name: "PvE", iconName: "🌲 PvE" },
+      { id: 4004, name: "Retro", iconName: "👾 Retro" },
+      { id: 7208, name: "Female Protagonist", iconName: "👩 Female Protagonist" },
+      { id: 4175, name: "Realistic", iconName: "📷 Realistic" },
+      { id: 1685, name: "Co-op", iconName: "🤝 Co-op" },
+      { id: 1775, name: "PvP", iconName: "1775" },
+      { id: 3799, name: "Visual Novel", iconName: "📚 Visual Novel" },
+      { id: 1625, name: "Platformer", iconName: "🏗️ Platformer" },
+      { id: 4342, name: "Dark", iconName: "😨 Dark" },
+      { id: 5716, name: "Mystery", iconName: "🤫 Mystery" },
+      { id: 6971, name: "Multiple Endings", iconName: "🔚 Multiple Endings" },
+      { id: 12095, name: "Sexual Content", iconName: "🔞 Sexual Content" },
+      { id: 7250, name: "Linear", iconName: "📏 Linear" },
+      { id: 4195, name: "Cartoony", iconName: "🖍️ Cartoony" },
+      { id: 1716, name: "Roguelike", iconName: "👻 Roguelike" },
+      { id: 3959, name: "Roguelite", iconName: "👻 Roguelite" },
+      { id: 5379, name: "2D Platformer", iconName: "📺 2D Platformer" },
+      { id: 3968, name: "Physics", iconName: "⚛️ Physics" },
+      { id: 1721, name: "Psychological Horror", iconName: "🕴 Psychological Horror" },
+      { id: 1719, name: "Comedy", iconName: "🤡 Comedy" },
+      { id: 6650, name: "Nudity", iconName: "🍑 Nudity" },
+      { id: 1662, name: "Survival", iconName: "🌲 Survival" },
+      { id: 1695, name: "Open World", iconName: "🌍 Open World" },
+      { id: 4747, name: "Character Customization", iconName: "🦹 Character Customization" },
+      { id: 3810, name: "Sandbox", iconName: "🧱 Sandbox" },
+      { id: 3843, name: "Online Co-Op", iconName: "👥 Online Co-Op" },
+      { id: 12472, name: "Management", iconName: "💼 Management" },
+      { id: 4667, name: "Violent", iconName: "👊 Violent" },
+      { id: 4057, name: "Magic", iconName: "🪄 Magic" },
+      { id: 1741, name: "Turn-Based Strategy", iconName: "🎲 Turn-Based Strategy" },
+      { id: 6815, name: "Hand-drawn", iconName: "🎨 Hand-drawn" },
+      { id: 4094, name: "Minimalist", iconName: "☯ Minimalist" },
+      { id: 4325, name: "Turn-Based Combat", iconName: "🛡️ Turn-Based Combat" },
+      { id: 8945, name: "Resource Management", iconName: "📊 Resource Management" },
+      { id: 1698, name: "Point & Click", iconName: "🔎 Point & Click" },
+      { id: 7948, name: "Soundtrack", iconName: "🎶 Soundtrack" },
+      { id: 65443, name: "Adult Content", iconName: "🔞 Adult Content" },
+      { id: 3916, name: "Old School", iconName: "🕹️ Old School" },
+      { id: 9204, name: "Immersive Sim", iconName: "🌎 Immersive Sim" },
+      { id: 1663, name: "FPS", iconName: "🔫 FPS" },
+      { id: 4345, name: "Gore", iconName: "😖 Gore" },
+      { id: 4231, name: "Action RPG", iconName: "💥 Action RPG" },
+      { id: 42804, name: "Action Roguelike", iconName: "👻 Action Roguelike" },
+      { id: 1643, name: "Building", iconName: "🏗️ Building" },
+      { id: 1708, name: "Tactical", iconName: "🤔 Tactical" },
+      { id: 701, name: "Sports", iconName: "🏅 Sports" },
+      { id: 4172, name: "Medieval", iconName: "🏰 Medieval" },
+      { id: 11014, name: "Interactive Fiction", iconName: "📚 Interactive Fiction" },
+      { id: 1702, name: "Crafting", iconName: "🔧 Crafting" },
+      { id: 4026, name: "Difficult", iconName: "😓 Difficult" },
+      { id: 4604, name: "Dark Fantasy", iconName: "🧝 Dark Fantasy" },
+      { id: 5395, name: "3D Platformer", iconName: "🦘 3D Platformer" },
+      { id: 5608, name: "Emotional", iconName: "💔 Emotional" },
+      { id: 5125, name: "Procedural Generation", iconName: "🔀 Procedural Generation" },
+      { id: 1755, name: "Space", iconName: "🌠 Space" },
+      { id: 4486, name: "Choose Your Own Adventure", iconName: "🧚 Choose Your Own Adventure" },
+      { id: 14139, name: "Turn-Based Tactics", iconName: "🎲 Turn-Based Tactics" },
+      { id: 4295, name: "Futuristic", iconName: "🌆 Futuristic" },
+      { id: 560542, name: "Incremental", iconName: "📈 Incremental" },
+      { id: 6129, name: "Logic", iconName: "🧩 Logic" },
+      { id: 4947, name: "Romance", iconName: "💘 Romance" },
+      { id: 4562, name: "Cartoon", iconName: "🖍️ Cartoon" },
+      { id: 21978, name: "VR", iconName: "🥽 VR" },
+      { id: 1738, name: "Hidden Object", iconName: "🔍 Hidden Object" },
+      { id: 699, name: "Racing", iconName: "🏁 Racing" },
+      { id: 30358, name: "Nature", iconName: "🌿 Nature" },
+      { id: 3978, name: "Survival Horror", iconName: "🎒 Survival Horror" },
+      { id: 4885, name: "Bullet Hell", iconName: "💥 Bullet Hell" },
+      { id: 17389, name: "Tabletop", iconName: "🃏 Tabletop" },
+      { id: 17305, name: "Strategy RPG", iconName: "🧠 Strategy RPG" },
+      { id: 3798, name: "Side Scroller", iconName: "📺 Side Scroller" },
+      { id: 5537, name: "Puzzle Platformer", iconName: "🧩 Puzzle Platformer" },
+      { id: 1646, name: "Hack and Slash", iconName: "🛡️ Hack and Slash" },
+      { id: 1666, name: "Card Game", iconName: "🃏 Card Game" },
+      { id: 6691, name: "1990's", iconName: "📼 1990's" },
+      { id: 10235, name: "Life Sim", iconName: "🧫 Life Sim" },
+      { id: 615955, name: "Idler", iconName: "🕒 Idler" },
+      { id: 5900, name: "Walking Simulator", iconName: "🚶 Walking Simulator" },
+      { id: 4255, name: "Shoot 'Em Up", iconName: "🕹 Shoot 'Em Up" },
+      { id: 7332, name: "Base Building", iconName: "🏠 Base Building" },
+      { id: 1720, name: "Dungeon Crawler", iconName: "🏰 Dungeon Crawler" },
+      { id: 9551, name: "Dating Sim", iconName: "💘 Dating Sim" },
+      { id: 1710, name: "Surreal", iconName: "🫠 Surreal" },
+      { id: 4695, name: "Economy", iconName: "🏦 Economy" },
+      { id: 128, name: "Massively Multiplayer", iconName: "🫶 Massively Multiplayer" },
+      { id: 7368, name: "Local Multiplayer", iconName: "📺 Local Multiplayer" },
+      { id: 5154, name: "Score Attack", iconName: "🏅 Score Attack" },
+      { id: 31275, name: "Text-Based", iconName: "📝 Text-Based" },
+      { id: 10695, name: "Party-Based RPG", iconName: "👥 Party-Based RPG" },
+      { id: 87, name: "Utilities", iconName: "🔧 Utilities" },
+      { id: 9130, name: "Hentai", iconName: "🥵 Hentai" },
+      { id: 4434, name: "JRPG", iconName: "🌸 JRPG" },
+      { id: 1036, name: "Education", iconName: "🏫 Education" },
+      { id: 3835, name: "Post-apocalyptic", iconName: "☢️ Post-apocalyptic" },
+      { id: 3854, name: "Lore-Rich", iconName: "📖 Lore-Rich" },
+      { id: 4145, name: "Cinematic", iconName: "🍿 Cinematic" },
+      { id: 1677, name: "Turn-Based", iconName: "🎲 Turn-Based" },
+      { id: 7743, name: "1980s", iconName: "🎸 1980s" },
+      { id: 1678, name: "War", iconName: "⚔️ War" },
+      { id: 3987, name: "Historical", iconName: "📜 Historical" },
+      { id: 32322, name: "Deckbuilding", iconName: "🎴 Deckbuilding" },
+      { id: 4975, name: "2.5D", iconName: "🌓 2.5D" },
+      { id: 16689, name: "Time Management", iconName: "🕒 Time Management" },
+      { id: 8369, name: "Investigation", iconName: "🔍 Investigation" },
+      { id: 5851, name: "Isometric", iconName: "🌆 Isometric" },
+      { id: 5186, name: "Psychological", iconName: "🫂 Psychological" },
+      { id: 97376, name: "Cozy", iconName: "🛏️ Cozy" },
+      { id: 4637, name: "Top-Down Shooter", iconName: "🌟 Top-Down Shooter" },
+      { id: 42152, name: "Dialogue Heavy", iconName: "💬 Dialogue Heavy" },
+      { id: 1687, name: "Stealth", iconName: "🥷 Stealth" },
+      { id: 8013, name: "Software", iconName: "💾 Software" },
+      { id: 4064, name: "Thriller", iconName: "🔪 Thriller" },
+      { id: 1659, name: "Zombies", iconName: "🧟 Zombies" },
+      { id: 5652, name: "Collectathon", iconName: "📦 Collectathon" },
+      { id: 4711, name: "Replay Value", iconName: "🔄 Replay Value" },
+      { id: 44868, name: "LGBTQ+", iconName: "🏳️‍🌈 LGBTQ+" },
+      { id: 21725, name: "Tactical RPG", iconName: "🛡️ Tactical RPG" },
+      { id: 5923, name: "Dark Humor", iconName: "🗿 Dark Humor" },
+      { id: 10808, name: "Supernatural", iconName: "🔮 Supernatural" },
+      { id: 4168, name: "Military", iconName: "🪖 Military" },
+      { id: 3814, name: "Third-Person Shooter", iconName: "🔫 Third-Person Shooter" },
+      { id: 84, name: "Design & Illustration", iconName: "🎨 Design & Illustration" },
+      { id: 1756, name: "Great Soundtrack", iconName: "🎶 Great Soundtrack" },
+      { id: 5613, name: "Detective", iconName: "🕵️ Detective" },
+      { id: 3841, name: "Local Co-Op", iconName: "👥 Local Co-Op" },
+      { id: 1645, name: "Tower Defense", iconName: "🏰 Tower Defense" },
+      { id: 6276, name: "Inventory Management", iconName: "📦 Inventory Management" },
+      { id: 1770, name: "Board Game", iconName: "🎲 Board Game" },
+      { id: 4115, name: "Cyberpunk", iconName: "🔋 Cyberpunk" },
+      { id: 12057, name: "Tutorial", iconName: "🎓 Tutorial" },
+      { id: 3877, name: "Precision Platformer", iconName: "🕹 Precision Platformer" },
+      { id: 4400, name: "Abstract", iconName: "🤯 Abstract" },
+      { id: 3813, name: "Real Time Tactics", iconName: "▶️ Real Time Tactics" },
+      { id: 1644, name: "Driving", iconName: "🚗 Driving" },
+      { id: 791774, name: "Card Battler", iconName: "🃏 Card Battler" },
+      { id: 4236, name: "Loot", iconName: "📦 Loot" },
+      { id: 9541, name: "Demons", iconName: "👿 Demons" },
+      { id: 6869, name: "Nonlinear", iconName: "〰️ Nonlinear" },
+      { id: 4474, name: "CRPG", iconName: "💻 CRPG" },
+      { id: 1676, name: "RTS", iconName: "🌐 RTS" },
+      { id: 1673, name: "Aliens", iconName: "👽 Aliens" },
+      { id: 5711, name: "Team-Based", iconName: "👥 Team-Based" },
+      { id: 5752, name: "Robots", iconName: "🤖 Robots" },
+      { id: 1759, name: "Perma Death", iconName: "☠️ Perma Death" },
+      { id: 255534, name: "Automation", iconName: "🤖 Automation" },
+      { id: 5547, name: "Arena Shooter", iconName: "🏟️ Arena Shooter" },
+      { id: 7926, name: "Artificial Intelligence", iconName: "🤖 Artificial Intelligence" },
+      { id: 5673, name: "Modern", iconName: "💻 Modern" },
+      { id: 4328, name: "City Builder", iconName: "🏙️ City Builder" },
+      { id: 5030, name: "Dystopian", iconName: "⛓ Dystopian" },
+      { id: 1751, name: "Comic Book", iconName: "💬 Comic Book" },
+      { id: 17894, name: "Cats", iconName: "🐱 Cats" },
+      { id: 4684, name: "Wargame", iconName: "⚔️ Wargame" },
+      { id: 916648, name: "Creature Collector", iconName: "🦎 Creature Collector" },
+      { id: 1714, name: "Psychedelic", iconName: "🦄 Psychedelic" },
+      { id: 4845, name: "Capitalism", iconName: "🤑 Capitalism" },
+      { id: 4046, name: "Dragons", iconName: "🐲 Dragons" },
+      { id: 1734, name: "Fast-Paced", iconName: "⚡ Fast-Paced" },
+      { id: 7178, name: "Party Game", iconName: "🎉 Party Game" },
+      { id: 4234, name: "Short", iconName: "🤏 Short" },
+      { id: 29482, name: "Souls-like", iconName: "💥 Souls-like" },
+      { id: 1084988, name: "Auto Battler", iconName: "⚔️ Auto Battler" },
+      { id: 1621, name: "Music", iconName: "🎶 Music" },
+      { id: 1628, name: "Metroidvania", iconName: "💨 Metroidvania" },
+      { id: 6378, name: "Crime", iconName: "🚨 Crime" },
+      { id: 7569, name: "Grid-Based Movement", iconName: "♟️ Grid-Based Movement" },
+      { id: 8122, name: "Level Editor", iconName: "📖 Level Editor" },
+      { id: 15045, name: "Flight", iconName: "✈️ Flight" },
+      { id: 4158, name: "Beat 'em up", iconName: "🥊 Beat 'em up" },
+      { id: 4508, name: "Co-op Campaign", iconName: "🤝 Co-op Campaign" },
+      { id: 8666, name: "Runner", iconName: "🏃 Runner" },
+      { id: 4598, name: "Alternate History", iconName: "🕰️ Alternate History" },
+      { id: 16094, name: "Mythology", iconName: "👹 Mythology" },
+      { id: 4036, name: "Parkour", iconName: "🧗 Parkour" },
+      { id: 4840, name: "4 Player Local", iconName: "4️⃣ 4 Player Local" },
+      { id: 1752, name: "Rhythm", iconName: "🎶 Rhythm" },
+      { id: 1100687, name: "Automobile Sim", iconName: "🚗 Automobile Sim" },
+      { id: 10397, name: "Memes", iconName: "🤣 Memes" },
+      { id: 5363, name: "Destruction", iconName: "💥 Destruction" },
+      { id: 4736, name: "2D Fighter", iconName: "🤼 2D Fighter" },
+      { id: 87918, name: "Farming Sim", iconName: "🌽 Farming Sim" },
+      { id: 1669, name: "Moddable", iconName: "🛠️ Moddable" },
+      { id: 3920, name: "Cooking", iconName: "🍲 Cooking" },
+      { id: 6506, name: "3D Fighter", iconName: "🤼 3D Fighter" },
+      { id: 13906, name: "Game Development", iconName: "🛠️ Game Development" },
+      { id: 3878, name: "Competitive", iconName: "🥇 Competitive" },
+      { id: 552282, name: "Wholesome", iconName: "🤗 Wholesome" },
+      { id: 24003, name: "Word Game", iconName: "📚 Word Game" },
+      { id: 15277, name: "Philosophical", iconName: "🧙‍♂ Philosophical" },
+      { id: 5055, name: "eSports", iconName: "🏆 eSports" },
+      { id: 4155, name: "Class-Based", iconName: "🎭 Class-Based" },
+      { id: 19995, name: "Dark Comedy", iconName: "🧛🏻 Dark Comedy" },
+      { id: 4202, name: "Trading", iconName: "💼 Trading" },
+      { id: 4758, name: "Twin Stick Shooter", iconName: "🕹️ Twin Stick Shooter" },
+      { id: 1743, name: "Fighting", iconName: "🤼 Fighting" },
+      { id: 220585, name: "Colony Sim", iconName: "🛖 Colony Sim" },
+      { id: 6052, name: "Noir", iconName: "🕵️ Noir" },
+      { id: 4608, name: "Swordplay", iconName: "🤺 Swordplay" },
+      { id: 16598, name: "Space Sim", iconName: "🚀 Space Sim" },
+      { id: 4364, name: "Grand Strategy", iconName: "🛡️ Grand Strategy" },
+      { id: 1091588, name: "Roguelike Deckbuilder", iconName: "🎴 Roguelike Deckbuilder" },
+      { id: 11104, name: "Vehicular Combat", iconName: "🏎️ Vehicular Combat" },
+      { id: 7432, name: "Lovecraftian", iconName: "🐙 Lovecraftian" },
+      { id: 5794, name: "Science", iconName: "🔬 Science" },
+      { id: 5765, name: "Gun Customization", iconName: "🔫 Gun Customization" },
+      { id: 91114, name: "Shop Keeper", iconName: "🛍️ Shop Keeper" },
+      { id: 5981, name: "Mining", iconName: "⛏️ Mining" },
+      { id: 13782, name: "Experimental", iconName: "⚗️ Experimental" },
+      { id: 872, name: "Animation & Modeling", iconName: "📏 Animation & Modeling" },
+      { id: 7702, name: "Narrative", iconName: "📚 Narrative" },
+      { id: 1754, name: "MMORPG", iconName: "🏪 MMORPG" },
+      { id: 5372, name: "Conspiracy", iconName: "👁️ Conspiracy" },
+      { id: 4878, name: "Parody", iconName: "🥸 Parody" },
+      { id: 1665, name: "Match 3", iconName: "3️⃣ Match 3" },
+      { id: 353880, name: "Looter Shooter", iconName: "🎒 Looter Shooter" },
+      { id: 3952, name: "Gothic", iconName: "🦇 Gothic" },
+      { id: 198631, name: "Mystery Dungeon", iconName: "🏰 Mystery Dungeon" },
+      { id: 1651, name: "Satire", iconName: "🎭 Satire" },
+      { id: 21006, name: "Underground", iconName: "🕳️ Underground" },
+      { id: 22602, name: "Agriculture", iconName: "🌾 Agriculture" },
+      { id: 10816, name: "Split Screen", iconName: "📺 Split Screen" },
+      { id: 15564, name: "Fishing", iconName: "🎣 Fishing" },
+      { id: 176981, name: "Battle Royale", iconName: "🌪️ Battle Royale" },
+      { id: 4777, name: "Spectacle fighter", iconName: "🤸 Spectacle fighter" },
+      { id: 4559, name: "Quick-Time Events", iconName: "⚡ Quick-Time Events" },
+      { id: 10383, name: "Transportation", iconName: "🚌 Transportation" },
+      { id: 16250, name: "Gambling", iconName: "🎰 Gambling" },
+      { id: 4835, name: "6DOF", iconName: "🚀 6DOF" },
+      { id: 5796, name: "Bullet Time", iconName: "⏸️ Bullet Time" },
+      { id: 13070, name: "Solitaire", iconName: "♠️ Solitaire" },
+      { id: 6915, name: "Martial Arts", iconName: "🥋 Martial Arts" },
+      { id: 1732, name: "Voxel", iconName: "🧊 Voxel" },
+      { id: 4102, name: "Combat Racing", iconName: "🏎️ Combat Racing" },
+      { id: 723991, name: "Bullet Heaven", iconName: "💥 Bullet Heaven" },
+      { id: 4150, name: "World War II", iconName: "🪂 World War II" },
+      { id: 1723, name: "Action RTS", iconName: "💥 Action RTS" },
+      { id: 4821, name: "Mechs", iconName: "🤖 Mechs" },
+      { id: 620519, name: "Hero Shooter", iconName: "🔫 Hero Shooter" },
+      { id: 6625, name: "Time Manipulation", iconName: "⏳ Time Manipulation" },
+      { id: 1688, name: "Ninja", iconName: "🥷 Ninja" },
+      { id: 9592, name: "Dynamic Narration", iconName: "📚 Dynamic Narration" },
+      { id: 9626, name: "Animals", iconName: "🐾 Animals" },
+      { id: 18594, name: "FMV", iconName: "📺 FMV" },
+      { id: 9271, name: "Trading Card Game", iconName: "🃏 Trading Card Game" },
+      { id: 35079, name: "Job Simulator", iconName: "🔧 Job Simulator" },
+      { id: 1616, name: "Trains", iconName: "🚂 Trains" },
+      { id: 9157, name: "Underwater", iconName: "🌊 Underwater" },
+      { id: 1637, name: "Dogs", iconName: "🐕 Dogs" },
+      { id: 5300, name: "God Game", iconName: "🌌 God Game" },
+      { id: 1693, name: "Classic", iconName: "🕒 Classic" },
+      { id: 1674, name: "Typing", iconName: "⌨️ Typing" },
+      { id: 1023537, name: "Boomer Shooter", iconName: "👴 Boomer Shooter" },
+      { id: 1681, name: "Pirates", iconName: "🏴‍☠ Pirates" },
+      { id: 1717, name: "Hex Grid", iconName: "🔷 Hex Grid" },
+      { id: 26921, name: "Political Sim", iconName: "🏛️ Political Sim" },
+      { id: 1730, name: "Sokoban", iconName: "📦 Sokoban" },
+      { id: 1100689, name: "Open World Survival Craft", iconName: "🌎 Open World Survival Craft" },
+      { id: 1777, name: "Steampunk", iconName: "🧷 Steampunk" },
+      { id: 10679, name: "Time Travel", iconName: "⏳ Time Travel" },
+      { id: 1027, name: "Audio Production", iconName: "🎶 Audio Production" },
+      { id: 3934, name: "Immersive", iconName: "🌎 Immersive" },
+      { id: 12686, name: "Vampires", iconName: "🧛 Vampires" },
+      { id: 17770, name: "Asynchronous Multiplayer", iconName: "🕒 Asynchronous Multiplayer" },
+      { id: 1670, name: "4X", iconName: "🗺️ 4X" },
+      { id: 13276, name: "Tanks", iconName: "🪖 Tanks" },
+      { id: 784, name: "Video Production", iconName: "📽 Video Production" },
+      { id: 5502, name: "Hacking", iconName: "🔌 Hacking" },
+      { id: 9564, name: "Hunting", iconName: "🏹 Hunting" },
+      { id: 5432, name: "Programming", iconName: "💻 Programming" },
+      { id: 31579, name: "Otome", iconName: "💘 Otome" },
+      { id: 180368, name: "Faith", iconName: "🙏 Faith" },
+      { id: 7108, name: "Party", iconName: "🥳 Party" },
+      { id: 8093, name: "Minigames", iconName: "🐜 Minigames" },
+      { id: 1647, name: "Western", iconName: "🤠 Western" },
+      { id: 5411, name: "Beautiful", iconName: "🦚 Beautiful" },
+      { id: 5160, name: "Dinosaurs", iconName: "🦖 Dinosaurs" },
+      { id: 11123, name: "Mouse Only", iconName: "🖱️ Mouse Only" },
+      { id: 6310, name: "Diplomacy", iconName: "🤝 Diplomacy" },
+      { id: 1718, name: "MOBA", iconName: "💢 MOBA" },
+      { id: 6910, name: "Naval", iconName: "🚢 Naval" },
+      { id: 3955, name: "Character Action Game", iconName: "⚡ Character Action Game" },
+      { id: 8253, name: "Music-Based Procedural Generation", iconName: "🤖 Music-Based Procedural Generation" },
+      { id: 454187, name: "Traditional Roguelike", iconName: "👻 Traditional Roguelike" },
+      { id: 769306, name: "Escape Room", iconName: "🗝️ Escape Room" },
+      { id: 1671, name: "Superhero", iconName: "🦸 Superhero" },
+      { id: 1320952, name: "Desktop Companion", iconName: "🖥️ Desktop Companion" },
+      { id: 1445, name: "Software Training", iconName: "📚 Software Training" },
+      { id: 97070, name: "Assassins", iconName: "🗡️ Assassins" },
+      { id: 9803, name: "Snow", iconName: "❄️ Snow" },
+      { id: 13577, name: "Sailing", iconName: "⛵ Sailing" },
+      { id: 4994, name: "Naval Combat", iconName: "🚢 Naval Combat" },
+      { id: 1254546, name: "Football (Soccer)", iconName: "⚽ Football (Soccer)" },
+      { id: 1680, name: "Heist", iconName: "💸 Heist" },
+      { id: 10437, name: "Trivia", iconName: "🤓 Trivia" },
+      { id: 1239876, name: "Organizing", iconName: "🗂️ Organizing" },
+      { id: 5179, name: "Cold War", iconName: "☢️ Cold War" },
+      { id: 809, name: "Photo Editing", iconName: "📷 Photo Editing" },
+      { id: 6041, name: "Horses", iconName: "🐎 Horses" },
+      { id: 4242, name: "Episodic", iconName: "🔢 Episodic" },
+      { id: 5390, name: "Time Attack", iconName: "⏰ Time Attack" },
+      { id: 13382, name: "Archery", iconName: "🎯 Archery" },
+      { id: 4161, name: "Real-Time", iconName: "▶️ Real-Time" },
+      { id: 14720, name: "Nostalgia", iconName: "🕯️ Nostalgia" },
+      { id: 4137, name: "Transhumanism", iconName: "🧬 Transhumanism" },
+      { id: 71389, name: "Spelling", iconName: "🔤 Spelling" },
+      { id: 4520, name: "Farming", iconName: "🌾 Farming" },
+      { id: 56690, name: "On-Rails Shooter", iconName: "🛤️ On-Rails Shooter" },
+      { id: 5708, name: "Remake", iconName: "🔄 Remake" },
+      { id: 7107, name: "Real-Time with Pause", iconName: "⏯ Real-Time with Pause" },
+      { id: 7622, name: "Offroad", iconName: "🛻 Offroad" },
+      { id: 23491, name: "Cleaning", iconName: "🧽 Cleaning" },
+      { id: 4184, name: "Chess", iconName: "♟️ Chess" },
+      { id: 889937, name: "Decorating", iconName: "🎨 Decorating" },
+      { id: 1100686, name: "Outbreak Sim", iconName: "🦠 Outbreak Sim" },
+      { id: 745697, name: "Social Deduction", iconName: "🠊 Social Deduction" },
+      { id: 7423, name: "Sniper", iconName: "🏹 Sniper" },
+      { id: 7556, name: "Dice", iconName: "🎲 Dice" },
+      { id: 12190, name: "Boxing", iconName: "🥊 Boxing" },
+      { id: 7038, name: "Golf", iconName: "🏌️ Golf" },
+      { id: 6621, name: "Pinball", iconName: "🧲 Pinball" },
+      { id: 5727, name: "Baseball", iconName: "⚾ Baseball" },
+      { id: 17015, name: "Werewolves", iconName: "🐺 Werewolves" },
+      { id: 1100688, name: "Medical Sim", iconName: "🩺 Medical Sim" },
+      { id: 4291, name: "Spaceships", iconName: "🛰 Spaceships" },
+      { id: 6702, name: "Mars", iconName: "🔴 Mars" },
+      { id: 198913, name: "Motorbike", iconName: "🏍️ Motorbike" },
+      { id: 4190, name: "Addictive", iconName: "🫦 Addictive" },
+      { id: 5230, name: "Sequel", iconName: "2️⃣ Sequel" },
+      { id: 11333, name: "Villain Protagonist", iconName: "😈 Villain Protagonist" },
+      { id: 1199779, name: "Extraction Shooter", iconName: "🔫 Extraction Shooter" },
+      { id: 1746, name: "Basketball", iconName: "🏀 Basketball" },
+      { id: 4535, name: "Dwarves", iconName: "⛏️ Dwarves" },
+      { id: 5382, name: "World War I", iconName: "🎖️ World War I" },
+      { id: 11095, name: "Boss Rush", iconName: "💥 Boss Rush" },
+      { id: 19780, name: "Submarine", iconName: "🤿 Submarine" },
+      { id: 42089, name: "Jump Scare", iconName: "🔪 Jump Scare" },
+      { id: 6948, name: "Rome", iconName: "🏛️ Rome" },
+      { id: 25085, name: "Touch-Friendly", iconName: "👆 Touch-Friendly" },
+      { id: 776177, name: "360 Video", iconName: "🌏 360 Video" },
+      { id: 61357, name: "Electronic Music", iconName: "🎶 Electronic Music" },
+      { id: 123332, name: "Bikes", iconName: "🚲 Bikes" },
+      { id: 760247, name: "Xianxia", iconName: "🐉 Xianxia" },
+      { id: 1220528, name: "Hobby Sim", iconName: "🌱 Hobby Sim" },
+      { id: 1753, name: "Skateboarding", iconName: "🛹 Skateboarding" },
+      { id: 150626, name: "Gaming", iconName: "🎮 Gaming" },
+      { id: 47827, name: "Wrestling", iconName: "🤼 Wrestling" },
+      { id: 25959, name: "Wuxia", iconName: "🥋 Wuxia" },
+      { id: 22955, name: "Mini Golf", iconName: "⛳ Mini Golf" },
+      { id: 37376, name: "Falling Blocks", iconName: "🧱 Falling Blocks" },
+      { id: 5348, name: "Mod", iconName: "🔧 Mod" },
+      { id: 6835, name: "Poker", iconName: "🃏 Poker" },
+      { id: 856791, name: "Asymmetric VR", iconName: "🥽 Asymmetric VR" },
+      { id: 4852, name: "Billiards", iconName: "🎱 Billiards" },
+      { id: 6054, name: "Elves", iconName: "🧝 Elves" },
+      { id: 1254552, name: "Football (American)", iconName: "🏈 Football (American)" },
+      { id: 1776, name: "Espionage", iconName: "🕵️ Espionage" },
+      { id: 189941, name: "Instrumental Music", iconName: "🎻 Instrumental Music" },
+      { id: 52406, name: "Cult", iconName: "🕯️ Cult" },
+      { id: 11634, name: "Vikings", iconName: "🛶 Vikings" },
+      { id: 96359, name: "Skating", iconName: "🛹 Skating" },
+      { id: 33572, name: "Mahjong", iconName: "🀄 Mahjong" },
+      { id: 19568, name: "Cycling", iconName: "🚴 Cycling" },
+      { id: 5914, name: "Tennis", iconName: "🎾 Tennis" },
+      { id: 8075, name: "TrackIR", iconName: "📡 TrackIR" },
+      { id: 3965, name: "Epic", iconName: "💎 Epic" },
+      { id: 337964, name: "Rock Music", iconName: "🤘 Rock Music" },
+      { id: 15954, name: "Silent Protagonist", iconName: "🔇 Silent Protagonist" },
+      { id: 6214, name: "Birds", iconName: "🐦 Birds" },
+      { id: 15868, name: "Motocross", iconName: "🚵🏿 Motocross" },
+      { id: 10617, name: "Samurai", iconName: "🗡️ Samurai" },
+      { id: 21635, name: "Language Learning", iconName: "🗣️ Language Learning" },
+      { id: 324176, name: "Hockey", iconName: "🏒 Hockey" },
+      { id: 14906, name: "Intentionally Awkward Controls", iconName: "😬 Intentionally Awkward Controls" },
+      { id: 27758, name: "Voice Control", iconName: "🎙️ Voice Control" },
+      { id: 7328, name: "Bowling", iconName: "🎳 Bowling" },
+      { id: 7309, name: "Skiing", iconName: "⛷ Skiing" },
+      { id: 507423, name: "Foxes", iconName: "🦊 Foxes" },
+      { id: 3796, name: "Based On A Novel", iconName: "📔 Based On A Novel" },
+      { id: 117648, name: "8-bit Music", iconName: "👾 8-bit Music" },
+      { id: 17337, name: "Lemmings", iconName: "🐹 Lemmings" },
+      { id: 28444, name: "Snowboarding", iconName: "🏂 Snowboarding" },
+      { id: 603297, name: "Hardware", iconName: "💻 Hardware" },
+      { id: 323922, name: "Musou", iconName: "🔱 Musou" },
+      { id: 252854, name: "BMX", iconName: "🚲 BMX" },
+      { id: 129761, name: "ATV", iconName: "🛻 ATV" },
+      { id: 20486, name: "Wolves", iconName: "🐺 Wolves" },
+      { id: 1352486, name: "Capybaras", iconName: "🦫 Capybaras" },
+      { id: 5407, name: "Benchmark", iconName: "📈 Benchmark" },
+      { id: 158638, name: "Cricket", iconName: "🏏 Cricket" },
+      { id: 46348, name: "Zoo", iconName: "🦁 Zoo" },
+      { id: 847164, name: "Volleyball", iconName: "🏐 Volleyball" },
+      { id: 49213, name: "Rugby", iconName: "🏉 Rugby" },
+      { id: 5941, name: "Reboot", iconName: "⏪ Reboot" }
+    ];
+
+    let allGames = [];
+    let filteredGames = [];
+
+    // Poblar el selector desplegable con las 300+ etiquetas
+    function initTagDropdown() {
+      const select = document.getElementById('tagSelect');
+      select.innerHTML = '<option value="">🏷️ Todas las etiquetas (300+ de SteamDB)...</option>';
+
+      // Ordenar alfabéticamente por nombre
+      const sorted = [...OFFICIAL_STEAM_TAGS].sort((a, b) => a.name.localeCompare(b.name));
+
+      sorted.forEach(tag => {
+        const opt = document.createElement('option');
+        opt.value = tag.name;
+        opt.textContent = tag.iconName;
+        select.appendChild(opt);
+      });
+    }
+
+    // --- FUNCIONES DE CACHÉ LOCAL ---
+    function getCache() {
+      try {
+        const stored = localStorage.getItem(CACHE_KEY);
+        return stored ? JSON.parse(stored) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveToCache(appid, tags, categories) {
+      try {
+        const cache = getCache();
+        cache[appid] = { tags, categories, timestamp: Date.now() };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+      } catch (e) {
+        console.warn("No se pudo guardar en localStorage:", e);
+      }
+    }
+
+    function clearCache() {
+      if (confirm("¿Deseas eliminar la memoria de etiquetas guardadas en este navegador?")) {
+        localStorage.removeItem(CACHE_KEY);
+        alert("Caché borrada correctamente.");
+      }
+    }
+
+    function retryMissingTags() {
+      const cache = getCache();
+      let clearedCount = 0;
+
+      allGames.forEach(g => {
+        if (!g.tags || g.tags.length === 0 || g.tags.includes("Sin Ficha en Tienda")) {
+          delete cache[g.appid];
+          g.loadedDetails = false;
+          g.tags = [];
+          g.categories = [];
+          clearedCount++;
+        }
+      });
+
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+
+      if (clearedCount === 0) {
+        alert("Todos los juegos ya poseen etiquetas asignadas.");
+        return;
+      }
+
+      const pendingGames = allGames.filter(g => !g.loadedDetails);
+      const statusBox = document.getElementById('statusBox');
+      statusBox.style.display = "block";
+      statusBox.textContent = `🔄 Reconsultando ${pendingGames.length} juegos sin etiquetas...`;
+
+      fetchTagsForBatch(pendingGames, statusBox);
+    }
+
+    async function resolveSteamId(input) {
+      let clean = input.trim();
+      if (/^\d{17}$/.test(clean)) return clean;
+
+      const profileMatch = clean.match(/steamcommunity\.com\/profiles\/(\d{17})/);
+      if (profileMatch) return profileMatch[1];
+
+      let customName = clean
+        .split('?')[0]
+        .replace(/https?:\/\/steamcommunity\.com\/id\//, '')
+        .replace(/\//g, '')
+        .trim();
+
+      if (!customName) return null;
+
+      const res = await fetch(`${WORKER_URL}/?action=resolve&vanity=${encodeURIComponent(customName)}`);
+      const data = await res.json();
+
+      if (data.response && data.response.success === 1) {
+        return data.response.steamid;
+      } else {
+        throw new Error(`No se pudo encontrar un SteamID64 para '${customName}'.`);
+      }
+    }
+
+    async function fetchLibrary() {
+      const input = document.getElementById('steamInput').value;
+      const statusBox = document.getElementById('statusBox');
+      const btn = document.getElementById('btnSearch');
+
+      if (!input.trim()) {
+        alert("Ingresa un usuario o ID de Steam.");
+        return;
+      }
+
+      btn.disabled = true;
+      statusBox.style.display = "block";
+      statusBox.textContent = "🔍 Resolviendo ID de Steam...";
+      document.getElementById('statsSection').style.display = "none";
+      document.getElementById('gamesGrid').innerHTML = "";
+
+      try {
+        const steamId = await resolveSteamId(input);
+        statusBox.textContent = `⏳ Obteniendo biblioteca de juegos para SteamID: ${steamId}...`;
+
+        const res = await fetch(`${WORKER_URL}/?action=owned_games&steamid=${steamId}`);
+        const data = await res.json();
+
+        if (!data.response || !data.response.games) {
+          throw new Error("No se pudieron obtener los juegos. Verifica que el perfil y la biblioteca sean PÚBLICOS.");
+        }
+
+        let rawGames = data.response.games;
+        rawGames.sort((a, b) => b.playtime_forever - a.playtime_forever);
+
+        const cache = getCache();
+        const pendingGames = [];
+
+        allGames = rawGames.map(g => {
+          const cachedEntry = cache[g.appid];
+          const isValidCached = cachedEntry && cachedEntry.tags && cachedEntry.tags.length > 0;
+
+          return {
+            appid: g.appid,
+            name: g.name,
+            playtime: (g.playtime_forever / 60).toFixed(1),
+            imgUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${g.appid}/header.jpg`,
+            tags: isValidCached ? cachedEntry.tags : [],
+            categories: isValidCached ? cachedEntry.categories : [],
+            loadedDetails: isValidCached
+          };
+        });
+
+        allGames.forEach(g => {
+          if (!g.loadedDetails) pendingGames.push(g);
+        });
+
+        let totalHours = allGames.reduce((acc, g) => acc + parseFloat(g.playtime), 0);
+        let playedCount = allGames.filter(g => parseFloat(g.playtime) > 0).length;
+
+        document.getElementById('statTotal').textContent = allGames.length;
+        document.getElementById('statHours').textContent = `${totalHours.toFixed(0)} hrs`;
+        document.getElementById('statPlayed').textContent = playedCount;
+        document.getElementById('statsSection').style.display = "block";
+
+        filteredGames = [...allGames];
+        renderGrid();
+
+        const cachedCount = allGames.length - pendingGames.length;
+
+        if (pendingGames.length === 0) {
+          statusBox.textContent = `⚡ ¡Carga instantánea! Se recuperaron los datos de los ${allGames.length} juegos desde la caché local.`;
+        } else {
+          statusBox.textContent = `📦 Se cargaron ${cachedCount} juegos desde la caché. Obteniendo etiquetas de ${pendingGames.length} juegos nuevos o incompletos...`;
+          await fetchTagsForBatch(pendingGames, statusBox);
+        }
+
+      } catch (err) {
+        statusBox.textContent = `❌ Error: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function fetchTagsForBatch(gamesList, statusBox) {
+      let count = 0;
+      for (const game of gamesList) {
+        count++;
+        statusBox.textContent = `⏳ Obteniendo etiquetas de juegos (${count}/${gamesList.length}): ${game.name}...`;
+
+        let retries = 0;
+        let success = false;
+
+        while (!success && retries < 2) {
+          try {
+            const res = await fetch(`${WORKER_URL}/?action=app_details&appid=${game.appid}`);
+            
+            if (res.status === 429) {
+              statusBox.textContent = `⏳ Pausa anti-bloqueo de Steam... reanudando en 2s (${count}/${gamesList.length})`;
+              await new Promise(r => setTimeout(r, 2000));
+              retries++;
+              continue;
+            }
+
+            if (res.ok) {
+              const data = await res.json();
+              
+              if (data && data[game.appid] && data[game.appid].success && data[game.appid].data) {
+                const details = data[game.appid].data;
+                let genresList = details.genres ? details.genres.map(g => g.description) : [];
+                let categoriesList = details.categories ? details.categories.slice(0, 3).map(c => c.description) : [];
+
+                if (genresList.length === 0 && details.type) {
+                  const typeMap = {
+                    'dlc': 'DLC / Expansión',
+                    'music': 'Banda Sonora',
+                    'demo': 'Demostración',
+                    'mod': 'Modificación',
+                    'video': 'Video',
+                    'application': 'Software / Herramienta'
+                  };
+                  if (typeMap[details.type]) {
+                    genresList.push(typeMap[details.type]);
+                  }
+                }
+
+                game.tags = genresList.length > 0 ? genresList : ["General"];
+                game.categories = categoriesList;
+
+              } else {
+                game.tags = ["Sin Ficha en Tienda"];
+                game.categories = [];
+              }
+
+              saveToCache(game.appid, game.tags, game.categories);
+              success = true;
+            }
+          } catch (e) {
+            console.warn(`Error al consultar ${game.name}`);
+          }
+          retries++;
+        }
+
+        game.loadedDetails = true;
+
+        if (count % 3 === 0 || count === gamesList.length) {
+          applyFilters();
+        }
+
+        await new Promise(r => setTimeout(r, 150));
+      }
+
+      statusBox.textContent = `✅ Carga completada. Se asignaron etiquetas a todos los juegos procesados.`;
+    }
+
+    function filterByTag(tag) {
+      const select = document.getElementById('tagSelect');
+      // Intentar hacer match directo
+      let found = Array.from(select.options).find(opt => opt.value.toLowerCase() === tag.toLowerCase());
+      
+      if (found) {
+        select.value = found.value;
+      } else {
+        // Si la etiqueta no está en la lista oficial estándar, buscar en texto
+        document.getElementById('filterText').value = tag;
+      }
+      applyFilters();
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('gamesGrid');
+      grid.innerHTML = "";
+
+      filteredGames.forEach(game => {
+        const card = document.createElement('div');
+        card.className = 'game-card';
+
+        const tagsHtml = game.tags.map(t => {
+          const isFallback = t === "Sin Ficha en Tienda" || t === "General";
+          return `<span class="tag-pill ${isFallback ? 'fallback' : ''}" onclick="filterByTag('${t.replace(/'/g, "\\'")}')">${t}</span>`;
+        }).join('');
+
+        const catsHtml = game.categories.map(c => `<span class="tag-pill cat" onclick="filterByTag('${c.replace(/'/g, "\\'")}')">${c}</span>`).join('');
+
+        card.innerHTML = `
+          <img class="game-banner" src="${game.imgUrl}" onerror="this.src='https://via.placeholder.com/460x215/1b2838/66c0f4?text=${encodeURIComponent(game.name)}'" alt="${game.name}">
+          <div class="game-info">
+            <div class="game-title">${game.name}</div>
+            <div class="game-playtime">⏱️ ${game.playtime} horas jugadas</div>
+            <div class="tag-container">
+              ${tagsHtml}
+              ${catsHtml}
+              ${(!game.loadedDetails) ? '<span style="font-size: 0.7rem; color: #8f98a0;">Cargando etiquetas...</span>' : ''}
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('filterText').value.toLowerCase().trim();
+      const selectedTag = document.getElementById('tagSelect').value.toLowerCase().trim();
+
+      filteredGames = allGames.filter(g => {
+        const matchText = !query || 
+          g.name.toLowerCase().includes(query) ||
+          g.tags.some(t => t.toLowerCase().includes(query)) ||
+          g.categories.some(c => c.toLowerCase().includes(query));
+
+        const matchTag = !selectedTag || 
+          g.tags.some(t => t.toLowerCase().includes(selectedTag) || selectedTag.includes(t.toLowerCase())) ||
+          g.categories.some(c => c.toLowerCase().includes(selectedTag) || selectedTag.includes(c.toLowerCase()));
+
+        return matchText && matchTag;
+      });
+
+      renderGrid();
+    }
+
+    function exportCSV() {
+      if (allGames.length === 0) return alert("No hay juegos para exportar.");
+
+      let csvContent = "\uFEFF";
+      csvContent += "AppID,Título,Horas Jugadas,Géneros,Categorías,Enlace Tienda\n";
+
+      allGames.forEach(g => {
+        const titleEscaped = `"${g.name.replace(/"/g, '""')}"`;
+        const genresEscaped = `"${g.tags.join(', ')}"`;
+        const catsEscaped = `"${g.categories.join(', ')}"`;
+        const storeLink = `https://store.steampowered.com/app/${g.appid}`;
+
+        csvContent += `${g.appid},${titleEscaped},${g.playtime},${genresEscaped},${catsEscaped},${storeLink}\n`;
+      });
+
+      downloadFile(csvContent, "steam_library.csv", "text/csv;charset=utf-8;");
+    }
+
+    function exportTXT() {
+      if (allGames.length === 0) return alert("No hay juegos para exportar.");
+
+      let txtContent = `===============================================\n`;
+      txtContent += `      REPORTE DE BIBLIOTECA DE STEAM          \n`;
+      txtContent += `===============================================\n\n`;
+
+      allGames.forEach((g, index) => {
+        txtContent += `${index + 1}. ${g.name}\n`;
+        txtContent += `   - App ID: ${g.appid}\n`;
+        txtContent += `   - Tiempo Jugado: ${g.playtime} horas\n`;
+        if (g.tags.length > 0) txtContent += `   - Géneros: ${g.tags.join(', ')}\n`;
+        if (g.categories.length > 0) txtContent += `   - Categorías: ${g.categories.join(', ')}\n`;
+        txtContent += `   - Tienda: https://store.steampowered.com/app/${g.appid}\n\n`;
+      });
+
+      downloadFile(txtContent, "steam_library.txt", "text/plain;charset=utf-8;");
+    }
+
+    function downloadFile(content, fileName, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Inicializar desplegable al cargar la página
+    window.addEventListener('DOMContentLoaded', initTagDropdown);
+  </script>
+</body>
+</html>
