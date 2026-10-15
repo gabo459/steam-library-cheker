@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Steam Library & Tags Explorer</title>
+  <title>Steam Library & Official Tags Explorer</title>
   <style>
     * {
       box-sizing: border-box;
@@ -245,6 +245,11 @@
       background-color: #3b628c;
       color: #ffffff;
     }
+
+    .tag-pill.fallback {
+      background-color: #3a2e1e;
+      color: #facc15;
+    }
   </style>
 </head>
 <body>
@@ -262,7 +267,8 @@
           <input type="text" id="steamInput" placeholder="Ejemplo: gabo459, 76561198... o URL de perfil">
         </div>
         <button id="btnSearch" onclick="fetchLibrary()">🔍 Consultar Biblioteca</button>
-        <button id="btnClearCache" onclick="clearCache()" style="background: #3a1e1e; color: #ff8888;" title="Borra las etiquetas guardadas localmente">🗑️ Limpiar Caché</button>
+        <button id="btnRetryMissing" onclick="retryMissingTags()" style="background: #1e3a5f; color: #66c0f4;" title="Vuelve a consultar solo los juegos sin etiquetas">🔄 Reconsultar Faltantes</button>
+        <button id="btnClearCache" onclick="clearCache()" style="background: #3a1e1e; color: #ff8888;" title="Borra toda la memoria guardada localmente">🗑️ Limpiar Caché</button>
       </div>
     </div>
 
@@ -285,12 +291,12 @@
       </div>
 
       <div class="panel filter-bar">
-        <div style="display: flex; gap: 10px; flex: 2; min-width: 280px;">
-          <input type="text" id="filterText" placeholder="Buscar por nombre..." oninput="applyFilters()" style="flex: 1;">
+        <div style="display: flex; gap: 10px; flex: 2; min-width: 280px; flex-wrap: wrap;">
+          <input type="text" id="filterText" placeholder="Buscar por nombre de juego..." oninput="applyFilters()" style="flex: 1; min-width: 200px;">
           
-          <!-- Filtro selector dinámico por Tag / Género -->
-          <select id="tagSelect" onchange="applyFilters()" style="flex: 1; max-width: 250px;">
-            <option value="">Todos los géneros / tags</option>
+          <!-- Filtro oficial con las 300+ etiquetas de Steam -->
+          <select id="tagSelect" onchange="applyFilters()" style="flex: 1; min-width: 220px; max-width: 320px;">
+            <option value="">🏷️ Seleccionar etiqueta de Steam (300+)...</option>
           </select>
         </div>
         
@@ -303,320 +309,3 @@
 
     <div class="games-grid" id="gamesGrid"></div>
   </div>
-
-  <script>
-    const WORKER_URL = "https://library-worker.ernestoygabo.workers.dev/".replace(/\/$/, "");
-    const CACHE_KEY = "steam_games_tags_cache_v1";
-
-    let allGames = [];
-    let filteredGames = [];
-
-    // --- FUNCIONES DE CACHÉ LOCAL ---
-    function getCache() {
-      try {
-        const stored = localStorage.getItem(CACHE_KEY);
-        return stored ? JSON.parse(stored) : {};
-      } catch (e) {
-        return {};
-      }
-    }
-
-    function saveToCache(appid, tags, categories) {
-      try {
-        const cache = getCache();
-        cache[appid] = { tags, categories, timestamp: Date.now() };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-      } catch (e) {
-        console.warn("No se pudo guardar en localStorage (posiblemente lleno):", e);
-      }
-    }
-
-    function clearCache() {
-      if (confirm("¿Deseas eliminar las etiquetas guardadas en este navegador?")) {
-        localStorage.removeItem(CACHE_KEY);
-        alert("Caché borrada correctamente.");
-      }
-    }
-
-    async function resolveSteamId(input) {
-      let clean = input.trim();
-      if (/^\d{17}$/.test(clean)) return clean;
-
-      const profileMatch = clean.match(/steamcommunity\.com\/profiles\/(\d{17})/);
-      if (profileMatch) return profileMatch[1];
-
-      let customName = clean
-        .split('?')[0]
-        .replace(/https?:\/\/steamcommunity\.com\/id\//, '')
-        .replace(/\//g, '')
-        .trim();
-
-      if (!customName) return null;
-
-      const res = await fetch(`${WORKER_URL}/?action=resolve&vanity=${encodeURIComponent(customName)}`);
-      const data = await res.json();
-
-      if (data.response && data.response.success === 1) {
-        return data.response.steamid;
-      } else {
-        throw new Error(`No se pudo encontrar un SteamID64 para '${customName}'.`);
-      }
-    }
-
-    async function fetchLibrary() {
-      const input = document.getElementById('steamInput').value;
-      const statusBox = document.getElementById('statusBox');
-      const btn = document.getElementById('btnSearch');
-
-      if (!input.trim()) {
-        alert("Ingresa un usuario o ID de Steam.");
-        return;
-      }
-
-      btn.disabled = true;
-      statusBox.style.display = "block";
-      statusBox.textContent = "🔍 Resolviendo ID de Steam...";
-      document.getElementById('statsSection').style.display = "none";
-      document.getElementById('gamesGrid').innerHTML = "";
-
-      try {
-        const steamId = await resolveSteamId(input);
-        statusBox.textContent = `⏳ Obteniendo biblioteca de juegos para SteamID: ${steamId}...`;
-
-        const res = await fetch(`${WORKER_URL}/?action=owned_games&steamid=${steamId}`);
-        const data = await res.json();
-
-        if (!data.response || !data.response.games) {
-          throw new Error("No se pudieron obtener los juegos. Verifica que el perfil y la biblioteca sean PÚBLICOS.");
-        }
-
-        let rawGames = data.response.games;
-        rawGames.sort((a, b) => b.playtime_forever - a.playtime_forever);
-
-        const cache = getCache();
-        const pendingGames = [];
-
-        allGames = rawGames.map(g => {
-          const isCached = !!cache[g.appid];
-          return {
-            appid: g.appid,
-            name: g.name,
-            playtime: (g.playtime_forever / 60).toFixed(1),
-            imgUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${g.appid}/header.jpg`,
-            tags: isCached ? cache[g.appid].tags : [],
-            categories: isCached ? cache[g.appid].categories : [],
-            loadedDetails: isCached
-          };
-        });
-
-        allGames.forEach(g => {
-          if (!g.loadedDetails) pendingGames.push(g);
-        });
-
-        let totalHours = allGames.reduce((acc, g) => acc + parseFloat(g.playtime), 0);
-        let playedCount = allGames.filter(g => parseFloat(g.playtime) > 0).length;
-
-        document.getElementById('statTotal').textContent = allGames.length;
-        document.getElementById('statHours').textContent = `${totalHours.toFixed(0)} hrs`;
-        document.getElementById('statPlayed').textContent = playedCount;
-        document.getElementById('statsSection').style.display = "block";
-
-        populateTagDropdown();
-        filteredGames = [...allGames];
-        renderGrid();
-
-        const cachedCount = allGames.length - pendingGames.length;
-
-        if (pendingGames.length === 0) {
-          statusBox.textContent = `⚡ ¡Carga instantánea! Se recuperaron los datos de los ${allGames.length} juegos desde la caché local.`;
-        } else {
-          statusBox.textContent = `📦 Se cargaron ${cachedCount} juegos desde la caché. Obteniendo etiquetas de ${pendingGames.length} juegos nuevos...`;
-          await fetchTagsForBatch(pendingGames, statusBox);
-        }
-
-      } catch (err) {
-        statusBox.textContent = `❌ Error: ${err.message}`;
-      } finally {
-        btn.disabled = false;
-      }
-    }
-
-    async function fetchTagsForBatch(gamesList, statusBox) {
-      let count = 0;
-      for (const game of gamesList) {
-        count++;
-        statusBox.textContent = `⏳ Obteniendo etiquetas de juegos nuevos (${count}/${gamesList.length}): ${game.name}...`;
-
-        let retries = 0;
-        let success = false;
-
-        while (!success && retries < 2) {
-          try {
-            const res = await fetch(`${WORKER_URL}/?action=app_details&appid=${game.appid}`);
-            
-            if (res.status === 429) {
-              statusBox.textContent = `⏳ Pausa anti-bloqueo de Steam... reanudando en 2s (${count}/${gamesList.length})`;
-              await new Promise(r => setTimeout(r, 2000));
-              retries++;
-              continue;
-            }
-
-            if (res.ok) {
-              const data = await res.json();
-              if (data && data[game.appid] && data[game.appid].success && data[game.appid].data) {
-                const details = data[game.appid].data;
-                if (details.genres) {
-                  game.tags = details.genres.map(g => g.description);
-                }
-                if (details.categories) {
-                  game.categories = details.categories.slice(0, 3).map(c => c.description);
-                }
-              }
-
-              saveToCache(game.appid, game.tags, game.categories);
-              success = true;
-            }
-          } catch (e) {
-            console.warn(`No se pudieron cargar etiquetas para ${game.name}`);
-          }
-          retries++;
-        }
-
-        game.loadedDetails = true;
-
-        if (count % 3 === 0 || count === gamesList.length) {
-          populateTagDropdown();
-          applyFilters();
-        }
-
-        await new Promise(r => setTimeout(r, 150));
-      }
-
-      statusBox.textContent = `✅ Carga completada. Todos los juegos nuevos han sido procesados y guardados en la caché local.`;
-    }
-
-    // Poblar dinámicamente el desplegable con tags/géneros únicos
-    function populateTagDropdown() {
-      const select = document.getElementById('tagSelect');
-      const currentValue = select.value;
-
-      const tagSet = new Set();
-      allGames.forEach(g => {
-        g.tags.forEach(t => tagSet.add(t));
-        g.categories.forEach(c => tagSet.add(c));
-      });
-
-      const sortedTags = Array.from(tagSet).sort((a, b) => a.localeCompare(b));
-
-      select.innerHTML = '<option value="">Todos los géneros / tags</option>';
-      sortedTags.forEach(tag => {
-        const opt = document.createElement('option');
-        opt.value = tag;
-        opt.textContent = tag;
-        if (tag === currentValue) opt.selected = true;
-        select.appendChild(opt);
-      });
-    }
-
-    // Filtrar al hacer clic en un tag de la tarjeta
-    function filterByTag(tag) {
-      const select = document.getElementById('tagSelect');
-      select.value = tag;
-      applyFilters();
-    }
-
-    function renderGrid() {
-      const grid = document.getElementById('gamesGrid');
-      grid.innerHTML = "";
-
-      filteredGames.forEach(game => {
-        const card = document.createElement('div');
-        card.className = 'game-card';
-
-        const tagsHtml = game.tags.map(t => `<span class="tag-pill" onclick="filterByTag('${t.replace(/'/g, "\\'")}')">${t}</span>`).join('');
-        const catsHtml = game.categories.map(c => `<span class="tag-pill cat" onclick="filterByTag('${c.replace(/'/g, "\\'")}')">${c}</span>`).join('');
-
-        card.innerHTML = `
-          <img class="game-banner" src="${game.imgUrl}" onerror="this.src='https://via.placeholder.com/460x215/1b2838/66c0f4?text=${encodeURIComponent(game.name)}'" alt="${game.name}">
-          <div class="game-info">
-            <div class="game-title">${game.name}</div>
-            <div class="game-playtime">⏱️ ${game.playtime} horas jugadas</div>
-            <div class="tag-container">
-              ${tagsHtml}
-              ${catsHtml}
-              ${(!game.loadedDetails) ? '<span style="font-size: 0.7rem; color: #8f98a0;">Cargando etiquetas...</span>' : ''}
-            </div>
-          </div>
-        `;
-
-        grid.appendChild(card);
-      });
-    }
-
-    function applyFilters() {
-      const query = document.getElementById('filterText').value.toLowerCase().trim();
-      const selectedTag = document.getElementById('tagSelect').value.toLowerCase().trim();
-
-      filteredGames = allGames.filter(g => {
-        const matchText = !query || g.name.toLowerCase().includes(query);
-        const matchTag = !selectedTag || 
-          g.tags.some(t => t.toLowerCase() === selectedTag) ||
-          g.categories.some(c => c.toLowerCase() === selectedTag);
-
-        return matchText && matchTag;
-      });
-
-      renderGrid();
-    }
-
-    function exportCSV() {
-      if (allGames.length === 0) return alert("No hay juegos para exportar.");
-
-      let csvContent = "\uFEFF";
-      csvContent += "AppID,Título,Horas Jugadas,Géneros,Categorías,Enlace Tienda\n";
-
-      allGames.forEach(g => {
-        const titleEscaped = `"${g.name.replace(/"/g, '""')}"`;
-        const genresEscaped = `"${g.tags.join(', ')}"`;
-        const catsEscaped = `"${g.categories.join(', ')}"`;
-        const storeLink = `https://store.steampowered.com/app/${g.appid}`;
-
-        csvContent += `${g.appid},${titleEscaped},${g.playtime},${genresEscaped},${catsEscaped},${storeLink}\n`;
-      });
-
-      downloadFile(csvContent, "steam_library.csv", "text/csv;charset=utf-8;");
-    }
-
-    function exportTXT() {
-      if (allGames.length === 0) return alert("No hay juegos para exportar.");
-
-      let txtContent = `===============================================\n`;
-      txtContent += `      REPORTE DE BIBLIOTECA DE STEAM          \n`;
-      txtContent += `===============================================\n\n`;
-
-      allGames.forEach((g, index) => {
-        txtContent += `${index + 1}. ${g.name}\n`;
-        txtContent += `   - App ID: ${g.appid}\n`;
-        txtContent += `   - Tiempo Jugado: ${g.playtime} horas\n`;
-        if (g.tags.length > 0) txtContent += `   - Géneros: ${g.tags.join(', ')}\n`;
-        if (g.categories.length > 0) txtContent += `   - Categorías: ${g.categories.join(', ')}\n`;
-        txtContent += `   - Tienda: https://store.steampowered.com/app/${g.appid}\n\n`;
-      });
-
-      downloadFile(txtContent, "steam_library.txt", "text/plain;charset=utf-8;");
-    }
-
-    function downloadFile(content, fileName, mimeType) {
-      const blob = new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-  </script>
-</body>
-</html>
