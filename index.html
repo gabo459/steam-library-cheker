@@ -285,7 +285,6 @@
   </div>
 
   <script>
-    // ⚠️ REEMPLAZA ESTA URL CON LA BASE DE TU CLOUDFLARE WORKER DEPLOYADO
     const WORKER_URL = "https://library-worker.ernestoygabo.workers.dev/".replace(/\/$/, "");
 
     let allGames = [];
@@ -344,7 +343,6 @@
         }
 
         let rawGames = data.response.games;
-        // Ordenar por tiempo de juego descendente
         rawGames.sort((a, b) => b.playtime_forever - a.playtime_forever);
 
         allGames = rawGames.map(g => ({
@@ -368,10 +366,10 @@
         filteredGames = [...allGames];
         renderGrid();
 
-        statusBox.textContent = `📦 Se cargaron ${allGames.length} juegos. Obteniendo etiquetas y géneros de la tienda...`;
+        statusBox.textContent = `📦 Se cargaron ${allGames.length} juegos. Obteniendo etiquetas y géneros de TODOS los juegos...`;
 
-        // Cargar etiquetas/géneros en lote de los primeros 30 juegos más jugados
-        fetchTagsForBatch(allGames.slice(0, 30), statusBox);
+        // Se procesa la lista completa de todos los juegos
+        await fetchTagsForBatch(allGames, statusBox);
 
       } catch (err) {
         statusBox.textContent = `❌ Error: ${err.message}`;
@@ -385,30 +383,51 @@
       for (const game of gamesList) {
         count++;
         statusBox.textContent = `⏳ Obteniendo etiquetas (${count}/${gamesList.length}): ${game.name}...`;
-        
-        try {
-          const res = await fetch(`${WORKER_URL}/?action=app_details&appid=${game.appid}`);
-          const data = await res.json();
 
-          if (data[game.appid] && data[game.appid].success && data[game.appid].data) {
-            const details = data[game.appid].data;
-            if (details.genres) {
-              game.tags = details.genres.map(g => g.description);
+        let retries = 0;
+        let success = false;
+
+        while (!success && retries < 2) {
+          try {
+            const res = await fetch(`${WORKER_URL}/?action=app_details&appid=${game.appid}`);
+            
+            if (res.status === 429) {
+              statusBox.textContent = `⏳ Pausa anti-bloqueo de Steam... reanudando en 2s (${count}/${gamesList.length})`;
+              await new Promise(r => setTimeout(r, 2000));
+              retries++;
+              continue;
             }
-            if (details.categories) {
-              game.categories = details.categories.slice(0, 3).map(c => c.description);
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data[game.appid] && data[game.appid].success && data[game.appid].data) {
+                const details = data[game.appid].data;
+                if (details.genres) {
+                  game.tags = details.genres.map(g => g.description);
+                }
+                if (details.categories) {
+                  game.categories = details.categories.slice(0, 3).map(c => c.description);
+                }
+              }
+              success = true;
             }
+          } catch (e) {
+            console.warn(`No se pudieron cargar etiquetas para ${game.name}`);
           }
-        } catch (e) {
-          console.warn(`No se pudieron cargar etiquetas para ${game.name}`);
+          retries++;
         }
 
         game.loadedDetails = true;
-        renderGrid();
-        await new Promise(r => setTimeout(r, 200)); // Pausa ligera
+
+        // Actualizar la grilla periódicamente sin recargar el DOM en cada iteración
+        if (count % 3 === 0 || count === gamesList.length) {
+          renderGrid();
+        }
+
+        await new Promise(r => setTimeout(r, 150));
       }
 
-      statusBox.textContent = `✅ Carga finalizada. Se procesaron las etiquetas de los juegos principales.`;
+      statusBox.textContent = `✅ Carga completada. Se procesaron las etiquetas de los ${gamesList.length} juegos.`;
     }
 
     function renderGrid() {
@@ -430,7 +449,7 @@
             <div class="tag-container">
               ${tagsHtml}
               ${catsHtml}
-              ${(!game.loadedDetails) ? '<span style="font-size: 0.7rem; color: #8f98a0;">Sin etiquetas</span>' : ''}
+              ${(!game.loadedDetails) ? '<span style="font-size: 0.7rem; color: #8f98a0;">Cargando etiquetas...</span>' : ''}
             </div>
           </div>
         `;
@@ -456,11 +475,10 @@
       renderGrid();
     }
 
-    // Funciones de Exportación
     function exportCSV() {
       if (allGames.length === 0) return alert("No hay juegos para exportar.");
 
-      let csvContent = "\uFEFF"; // UTF-8 BOM para Excel
+      let csvContent = "\uFEFF";
       csvContent += "AppID,Título,Horas Jugadas,Géneros,Categorías,Enlace Tienda\n";
 
       allGames.forEach(g => {
