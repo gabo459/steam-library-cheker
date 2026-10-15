@@ -231,6 +231,11 @@
       background-color: #1e3a5f;
       color: #c6d4df;
     }
+
+    .tag-pill.cached {
+      background-color: #133a28;
+      color: #a3e035;
+    }
   </style>
 </head>
 <body>
@@ -248,6 +253,7 @@
           <input type="text" id="steamInput" placeholder="Ejemplo: gabo459, 76561198... o URL de perfil">
         </div>
         <button id="btnSearch" onclick="fetchLibrary()">🔍 Consultar Biblioteca</button>
+        <button id="btnClearCache" onclick="clearCache()" style="background: #3a1e1e; color: #ff8888;" title="Borra las etiquetas guardadas localmente">🗑️ Limpiar Caché</button>
       </div>
     </div>
 
@@ -286,9 +292,37 @@
 
   <script>
     const WORKER_URL = "https://library-worker.ernestoygabo.workers.dev/".replace(/\/$/, "");
+    const CACHE_KEY = "steam_games_tags_cache_v1";
 
     let allGames = [];
     let filteredGames = [];
+
+    // --- FUNCIONES DE CACHÉ LOCAL ---
+    function getCache() {
+      try {
+        const stored = localStorage.getItem(CACHE_KEY);
+        return stored ? JSON.parse(stored) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveToCache(appid, tags, categories) {
+      try {
+        const cache = getCache();
+        cache[appid] = { tags, categories, timestamp: Date.now() };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+      } catch (e) {
+        console.warn("No se pudo guardar en localStorage (posiblemente lleno):", e);
+      }
+    }
+
+    function clearCache() {
+      if (confirm("¿Deseas eliminar las etiquetas guardadas en este navegador?")) {
+        localStorage.removeItem(CACHE_KEY);
+        alert("Caché borrada correctamente.");
+      }
+    }
 
     async function resolveSteamId(input) {
       let clean = input.trim();
@@ -345,15 +379,26 @@
         let rawGames = data.response.games;
         rawGames.sort((a, b) => b.playtime_forever - a.playtime_forever);
 
-        allGames = rawGames.map(g => ({
-          appid: g.appid,
-          name: g.name,
-          playtime: (g.playtime_forever / 60).toFixed(1),
-          imgUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${g.appid}/header.jpg`,
-          tags: [],
-          categories: [],
-          loadedDetails: false
-        }));
+        const cache = getCache();
+        const pendingGames = [];
+
+        allGames = rawGames.map(g => {
+          const isCached = !!cache[g.appid];
+          return {
+            appid: g.appid,
+            name: g.name,
+            playtime: (g.playtime_forever / 60).toFixed(1),
+            imgUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${g.appid}/header.jpg`,
+            tags: isCached ? cache[g.appid].tags : [],
+            categories: isCached ? cache[g.appid].categories : [],
+            loadedDetails: isCached
+          };
+        });
+
+        // Filtrar solo los juegos que NO están en la caché
+        allGames.forEach(g => {
+          if (!g.loadedDetails) pendingGames.push(g);
+        });
 
         let totalHours = allGames.reduce((acc, g) => acc + parseFloat(g.playtime), 0);
         let playedCount = allGames.filter(g => parseFloat(g.playtime) > 0).length;
@@ -366,10 +411,14 @@
         filteredGames = [...allGames];
         renderGrid();
 
-        statusBox.textContent = `📦 Se cargaron ${allGames.length} juegos. Obteniendo etiquetas y géneros de TODOS los juegos...`;
+        const cachedCount = allGames.length - pendingGames.length;
 
-        // Se procesa la lista completa de todos los juegos
-        await fetchTagsForBatch(allGames, statusBox);
+        if (pendingGames.length === 0) {
+          statusBox.textContent = `⚡ ¡Carga instantánea! Se recuperaron los datos de los ${allGames.length} juegos desde la caché local.`;
+        } else {
+          statusBox.textContent = `📦 Se cargaron ${cachedCount} juegos desde la caché. Obteniendo etiquetas de ${pendingGames.length} juegos nuevos...`;
+          await fetchTagsForBatch(pendingGames, statusBox);
+        }
 
       } catch (err) {
         statusBox.textContent = `❌ Error: ${err.message}`;
@@ -382,7 +431,7 @@
       let count = 0;
       for (const game of gamesList) {
         count++;
-        statusBox.textContent = `⏳ Obteniendo etiquetas (${count}/${gamesList.length}): ${game.name}...`;
+        statusBox.textContent = `⏳ Obteniendo etiquetas de juegos nuevos (${count}/${gamesList.length}): ${game.name}...`;
 
         let retries = 0;
         let success = false;
@@ -409,6 +458,9 @@
                   game.categories = details.categories.slice(0, 3).map(c => c.description);
                 }
               }
+
+              // Guardar en la caché del navegador
+              saveToCache(game.appid, game.tags, game.categories);
               success = true;
             }
           } catch (e) {
@@ -419,7 +471,6 @@
 
         game.loadedDetails = true;
 
-        // Actualizar la grilla periódicamente sin recargar el DOM en cada iteración
         if (count % 3 === 0 || count === gamesList.length) {
           renderGrid();
         }
@@ -427,7 +478,7 @@
         await new Promise(r => setTimeout(r, 150));
       }
 
-      statusBox.textContent = `✅ Carga completada. Se procesaron las etiquetas de los ${gamesList.length} juegos.`;
+      statusBox.textContent = `✅ Carga completada. Todos los juegos nuevos han sido procesados y guardados en la caché local.`;
     }
 
     function renderGrid() {
